@@ -1,0 +1,33 @@
+{
+  "name": "@rgarciadelongoria/iframe-light",
+  "version": "0.0.1",
+  "description": "Simple library to work with iframes.",
+  "main": "lib/es5/index.js",
+  "module": "lib/es6/index.js",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rgarciadelongoria/iframe-light.git"
+  },
+  "files": [
+    "lib",
+    "CHANGELOG.md",
+    "LICENSE",
+    "package.json",
+    "README.md"
+  ],
+  "keywords": [
+    "javascript",
+    "microfrontend",
+    "micro",
+    "frontend",
+    "iframe"
+  ],
+  "author": "Rubén García de Longoria <rgarciadelongoria@gmail.com> (https://longocode.com/)",
+  "license": "MIT",
+  
+  "bugs": {
+    "url": "https://github.com/rgarciadelongoria/iframe-light/issues"
+  },
+  "homepage": "https://github.com/rgarciadelongoria/iframe-light#readme"
+}

@@ -1,0 +1,1 @@
+export { IframeLight } from "./main";
