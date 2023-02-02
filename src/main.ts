@@ -8,10 +8,20 @@ export interface IframeFather {
     name: string;
 }
 
+export interface MessageEstructure {
+    code: MESSAGE_CODES;
+    message: any;
+}
+
+export enum MESSAGE_CODES {
+    CUSTOM = 'CUSTOM'
+}
+
 export class IframeLight {
     private static instance: IframeLight;
     private _fathers: IframeFather[] = [];
     private _children: IframeChild[] = [];
+    private onMessageCallback: (event: any) => void;
 
     public get fathers() {
         return this._fathers;
@@ -34,8 +44,7 @@ export class IframeLight {
     private initEvents() {
         window.onmessage = (event: any) => {
             if (this.hasCorrectOrigin(event)) {
-                console.log('onmessage', event);
-                alert(event.data);
+                this.onMessageCallback(event);
             }
         }
     }
@@ -63,11 +72,23 @@ export class IframeLight {
         return this.children.find((child, index) => child?.name === name);
     }
 
+    private formatMessage(message: any, code?: MESSAGE_CODES): MessageEstructure{
+        const messageEstructure: MessageEstructure = {
+            code: code || MESSAGE_CODES.CUSTOM,
+            message
+        }
+        return messageEstructure;
+    }
+
     public static init() {
         if (!IframeLight.instance) {
             IframeLight.instance = new IframeLight();
         }
         return IframeLight.instance;
+    }
+
+    public setOnMessageCallback(callback: (event: any) => void) {
+        this.onMessageCallback = callback;
     }
 
     public addFather(uri: string, name: string): void {
@@ -89,7 +110,7 @@ export class IframeLight {
     public messageToFatherByName(name: string, message: any) {
         const father = this.findFatherByName(name);
         if (father) {
-            parent.postMessage(message, father.uri);
+            parent.postMessage(this.formatMessage(message), father.uri);
         }
     }   
 
@@ -97,7 +118,20 @@ export class IframeLight {
         const child = this.findChildByName(name);
         if (child) {
             const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
-            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(message, src);
+            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(this.formatMessage(message), src);
         }
-    }      
+    }
+    
+    public messageToAllFathers(message: any) {
+        this.fathers.forEach((father) => {
+            parent.postMessage(this.formatMessage(message), father.uri);
+        });
+    }
+
+    public messageToAllChildren(message: any) {
+        this.children.forEach((child) => {
+            const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
+            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(this.formatMessage(message), src);
+        });
+    }
 }
