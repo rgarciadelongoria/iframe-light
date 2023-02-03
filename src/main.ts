@@ -20,7 +20,7 @@ export interface LocalData {
 
 export enum MESSAGE_CODES {
     CUSTOM = 'CUSTOM',
-    CHILD_LOCAL_DATA = 'CHILD_LOCAL_DATA',
+    CHILD_GLOBAL_DATA = 'CHILD_GLOBAL_DATA',
     FATHER_GLOBAL_DATA = 'FATHER_GLOBAL_DATA',
 }
 
@@ -50,6 +50,8 @@ export class IframeLight {
 
     constructor() {
         this.initEvents();
+        this.updateGlobalDataWithOwnLocalData();
+        this.sendGlobalDataToAllFathers();
         console.warn('MicrofrontLight Ready!');
     }
 
@@ -60,11 +62,15 @@ export class IframeLight {
             if (this.hasCorrectOrigin(event)) {
                 if (code === MESSAGE_CODES.CUSTOM) {
                     this.onMessageCallback(event);
-                } else if (code === MESSAGE_CODES.CHILD_LOCAL_DATA) {
-                    this.updateGlobalDataWithChildLocalData(event.data.message);
-                    this.sendGlobalDataToAllChildren();
+                } else if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) {
+                    this.updateGlobalDataWithIncomingGlobalData(event.data.message);
+                    if (this._fathers.length) {
+                        this.sendGlobalDataToAllFathers();
+                    } else if (this._children.length){
+                        this.sendGlobalDataToAllChildren();
+                    }
                 } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
-                    this.updateGlobalDataWithFatherGlobalData(event.data.message);
+                    this.updateGlobalDataWithIncomingGlobalData(event.data.message);
                     this.sendGlobalDataToAllChildren();
                 }
             }
@@ -102,23 +108,23 @@ export class IframeLight {
         return messageEstructure;
     }
 
-    private sendLocalDataToAllFathers() {
+    private sendGlobalDataToAllFathers() {
         this.fathers.forEach((father) => {
             parent.postMessage(
-                this.formatMessage(this._localData, MESSAGE_CODES.CHILD_LOCAL_DATA), 
+                this.formatMessage(this._globalData, MESSAGE_CODES.CHILD_GLOBAL_DATA), 
                 father.uri
             );
         });
     }
 
-    private updateGlobalDataWithChildLocalData(incomingChildData: LocalData) {
-        const sharedDataExist = this._globalData.find((currentChildData) => currentChildData.uri === incomingChildData.uri);
+    private updateGlobalDataWithIncomingLocalData(incomingLocalData: LocalData) {
+        const sharedDataExist = this._globalData.find((currentChildData) => currentChildData.uri === incomingLocalData.uri);
         if (!sharedDataExist) {
-            this._globalData.push(incomingChildData);
+            this._globalData.push(incomingLocalData);
         } else {
             this._globalData = this._globalData.map((currentChildData) => {
-                if (currentChildData.uri === incomingChildData.uri) {
-                    return incomingChildData;
+                if (currentChildData.uri === incomingLocalData.uri) {
+                    return incomingLocalData;
                 } else {
                     return currentChildData;
                 }
@@ -136,13 +142,13 @@ export class IframeLight {
         });
     }
 
-    private updateGlobalDataWithFatherGlobalData(incomingFatherData: LocalData[]) {
-        this._globalData = incomingFatherData;
+    private updateGlobalDataWithIncomingGlobalData(incomingGlobalData: LocalData[]) {
+        this._globalData = incomingGlobalData;
         this.updateGlobalDataWithOwnLocalData();
     }
 
     private updateGlobalDataWithOwnLocalData() {
-        this.updateGlobalDataWithChildLocalData(this._localData);
+        this.updateGlobalDataWithIncomingLocalData(this._localData);
     }
 
     public static init() {
@@ -202,7 +208,12 @@ export class IframeLight {
 
     public setLocalData(name: string, data: any) {
         this._localData.data[name] = data;
-        this.sendLocalDataToAllFathers();
+        this.updateGlobalDataWithOwnLocalData();
+        if (this._fathers.length) {
+            this.sendGlobalDataToAllFathers();
+        } else if (this._children.length){
+            this.sendGlobalDataToAllChildren();
+        }
     }
 
     public getLocalData(): LocalData {
