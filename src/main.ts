@@ -21,6 +21,7 @@ export interface LocalData {
 export enum MESSAGE_CODES {
     CUSTOM = 'CUSTOM',
     CHILD_LOCAL_DATA = 'CHILD_LOCAL_DATA',
+    FATHER_GLOBAL_DATA = 'FATHER_GLOBAL_DATA',
 }
 
 export class IframeLight {
@@ -61,6 +62,10 @@ export class IframeLight {
                     this.onMessageCallback(event);
                 } else if (code === MESSAGE_CODES.CHILD_LOCAL_DATA) {
                     this.updateGlobalDataWithChildLocalData(event.data.message);
+                    this.sendGlobalDataToAllChildren();
+                } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
+                    this.updateGlobalDataWithFatherGlobalData(event.data.message);
+                    this.sendGlobalDataToAllChildren();
                 }
             }
         }
@@ -99,7 +104,10 @@ export class IframeLight {
 
     private sendLocalDataToAllFathers() {
         this.fathers.forEach((father) => {
-            parent.postMessage(this.formatMessage(this._localData, MESSAGE_CODES.CHILD_LOCAL_DATA), father.uri);
+            parent.postMessage(
+                this.formatMessage(this._localData, MESSAGE_CODES.CHILD_LOCAL_DATA), 
+                father.uri
+            );
         });
     }
 
@@ -116,6 +124,25 @@ export class IframeLight {
                 }
             });
         }
+    }
+
+    private sendGlobalDataToAllChildren() {
+        this.children.forEach((child) => {
+            const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
+            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(
+                this.formatMessage(this._globalData, MESSAGE_CODES.FATHER_GLOBAL_DATA), 
+                src
+            );
+        });
+    }
+
+    private updateGlobalDataWithFatherGlobalData(incomingFatherData: LocalData[]) {
+        this._globalData = incomingFatherData;
+        this.updateGlobalDataWithOwnLocalData();
+    }
+
+    private updateGlobalDataWithOwnLocalData() {
+        this.updateGlobalDataWithChildLocalData(this._localData);
     }
 
     public static init() {
