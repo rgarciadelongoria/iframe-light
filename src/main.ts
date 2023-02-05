@@ -174,8 +174,8 @@ export class IframeLight {
         }
         this.fathers.push(father);
         // Send data to new father added // TODO - Think about this
-        // this.updateGlobalDataWithOwnLocalData();
-        // this.sendGlobalDataToAllFathers();
+        this.updateGlobalDataWithOwnLocalData();
+        this.sendGlobalDataToAllFathers();
     }
 
     public addChild(iframe: HTMLIFrameElement, name: string) {
@@ -185,8 +185,8 @@ export class IframeLight {
         }
         this.children.push(child);
         // Send data to new child added // TODO - Think about this
-        // this.updateGlobalDataWithOwnLocalData();
-        // this.sendGlobalDataToAllChildren();
+        this.updateGlobalDataWithOwnLocalData();
+        this.sendGlobalDataToAllChildren();
     }
 
     public messageToFatherByName(name: string, message: any) {
