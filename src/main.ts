@@ -27,13 +27,14 @@ export enum MESSAGE_CODES {
 export class IframeLight {
     private static instance: IframeLight;
     private onMessageCallback: (event: any) => void;
+    private _debug: boolean = false;
     private _fathers: IframeFather[] = [];
     private _children: IframeChild[] = [];
     private _localData: LocalData = {
         uri: window.location.href.substring(0, window.location.href.lastIndexOf('/')),
         data: {}
     };
-    private _globalData: LocalData[] = [];
+    private _globalData: LocalData[] = [this._localData];
 
     public get fathers() {
         return this._fathers;
@@ -50,17 +51,21 @@ export class IframeLight {
 
     constructor() {
         this.initEvents();
-        console.warn('MicrofrontLight Ready!');
+        console.info(`MicrofrontLight ready! - [${this._localData.uri}]`);
     }
 
     private initEvents() {
+        // TODO - extract to function to manage events
         window.onmessage = (event: any) => {
-            console.log(event);
+            if (this._debug) {
+                console.log(`MicrofrontLight event - [${this._localData.uri}]`, event);
+            }
             const code = event.data?.code || MESSAGE_CODES.CUSTOM;
             if (this.hasCorrectOrigin(event)) {
                 if (code === MESSAGE_CODES.CUSTOM) {
                     this.onMessageCallback(event);
                 } else if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) {
+                    // TODO - extract to a function for better readability
                     this.updateGlobalDataWithIncomingGlobalData(event.data.message, code);
                     if (this._fathers.length) {
                         this.sendGlobalDataToAllFathers();
@@ -68,12 +73,15 @@ export class IframeLight {
                         this.sendGlobalDataToAllChildren();
                     }
                 } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
+                    // TODO - extract to a function for better readability
                     this.updateGlobalDataWithIncomingGlobalData(event.data.message, code);
                     this.sendGlobalDataToAllChildren();
                 }
             }
         }
     }
+
+    // Tools & Utils
 
     private hasCorrectOrigin(event: any): boolean {
         return (
@@ -106,6 +114,8 @@ export class IframeLight {
         return messageEstructure;
     }
 
+    // Send data
+
     private sendGlobalDataToAllFathers() {
         this.fathers.forEach((father) => {
             parent.postMessage(
@@ -114,6 +124,18 @@ export class IframeLight {
             );
         });
     }
+
+    private sendGlobalDataToAllChildren() {
+        this.children.forEach((child) => {
+            const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
+            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(
+                this.formatMessage(this._globalData, MESSAGE_CODES.FATHER_GLOBAL_DATA), 
+                src
+            );
+        });
+    }
+
+    // Update data
 
     private updateGlobalDataWithIncomingLocalData(incomingLocalData: LocalData) {
         const sharedDataExist = this._globalData.find((currentChildData) => currentChildData.uri === incomingLocalData.uri);
@@ -130,35 +152,30 @@ export class IframeLight {
         }
     }
 
-    private sendGlobalDataToAllChildren() {
-        this.children.forEach((child) => {
-            const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
-            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(
-                this.formatMessage(this._globalData, MESSAGE_CODES.FATHER_GLOBAL_DATA), 
-                src
-            );
-        });
-    }
-
-    private updateGlobalDataWithIncomingGlobalData(incomingGlobalData: LocalData[], code: MESSAGE_CODES) {
-        if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) {
-            incomingGlobalData.map((incomingData: LocalData) => {
-                this.updateGlobalDataWithIncomingLocalData(incomingData);
-            })
-            
-        } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
-            this._globalData = incomingGlobalData;
-        }
-        this.updateGlobalDataWithOwnLocalData();
-    }
-
     private updateGlobalDataWithOwnLocalData() {
         this.updateGlobalDataWithIncomingLocalData(this._localData);
     }
 
-    public static init() {
+    private updateGlobalDataWithIncomingGlobalData(incomingGlobalData: LocalData[], code: MESSAGE_CODES) {
+        if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) { // Update or add new data from CHILD global data
+            incomingGlobalData.map((incomingData: LocalData) => {
+                this.updateGlobalDataWithIncomingLocalData(incomingData);
+            })
+        } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) { // Overwrite global data with FATHER global data
+            this._globalData = incomingGlobalData;
+        }
+        this.updateGlobalDataWithOwnLocalData(); // Update global data with own local data
+    }
+
+    // Config
+
+    public static init(debug?: boolean): IframeLight {
         if (!IframeLight.instance) {
             IframeLight.instance = new IframeLight();
+            if (debug) {
+                IframeLight.instance._debug = debug;
+                console.warn('MicrofrontLight is in debug mode');
+            }
         }
         return IframeLight.instance;
     }
@@ -173,7 +190,7 @@ export class IframeLight {
             name
         }
         this.fathers.push(father);
-        // Send data to new father added // TODO - Think about this
+        // Send data to new father added
         this.updateGlobalDataWithOwnLocalData();
         this.sendGlobalDataToAllFathers();
     }
@@ -184,10 +201,12 @@ export class IframeLight {
             name
         }
         this.children.push(child);
-        // Send data to new child added // TODO - Think about this
+        // Send data to new child added
         this.updateGlobalDataWithOwnLocalData();
         this.sendGlobalDataToAllChildren();
     }
+
+    // Messaging
 
     public messageToFatherByName(name: string, message: any) {
         const father = this.findFatherByName(name);
@@ -216,6 +235,8 @@ export class IframeLight {
             (child as any).elementRef.nativeElement?.contentWindow?.postMessage(this.formatMessage(message), src);
         });
     }
+
+    // Data
 
     public setLocalData(name: string, data: any) {
         this._localData.data[name] = data;
