@@ -50,8 +50,6 @@ export class IframeLight {
 
     constructor() {
         this.initEvents();
-        this.updateGlobalDataWithOwnLocalData();
-        this.sendGlobalDataToAllFathers();
         console.warn('MicrofrontLight Ready!');
     }
 
@@ -63,14 +61,14 @@ export class IframeLight {
                 if (code === MESSAGE_CODES.CUSTOM) {
                     this.onMessageCallback(event);
                 } else if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) {
-                    this.updateGlobalDataWithIncomingGlobalData(event.data.message);
+                    this.updateGlobalDataWithIncomingGlobalData(event.data.message, code);
                     if (this._fathers.length) {
                         this.sendGlobalDataToAllFathers();
-                    } else if (this._children.length){
+                    } else if (!this.fathers.length && this._children.length){
                         this.sendGlobalDataToAllChildren();
                     }
                 } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
-                    this.updateGlobalDataWithIncomingGlobalData(event.data.message);
+                    this.updateGlobalDataWithIncomingGlobalData(event.data.message, code);
                     this.sendGlobalDataToAllChildren();
                 }
             }
@@ -142,8 +140,15 @@ export class IframeLight {
         });
     }
 
-    private updateGlobalDataWithIncomingGlobalData(incomingGlobalData: LocalData[]) {
-        this._globalData = incomingGlobalData;
+    private updateGlobalDataWithIncomingGlobalData(incomingGlobalData: LocalData[], code: MESSAGE_CODES) {
+        if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) {
+            incomingGlobalData.map((incomingData: LocalData) => {
+                this.updateGlobalDataWithIncomingLocalData(incomingData);
+            })
+            
+        } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
+            this._globalData = incomingGlobalData;
+        }
         this.updateGlobalDataWithOwnLocalData();
     }
 
@@ -168,6 +173,9 @@ export class IframeLight {
             name
         }
         this.fathers.push(father);
+        // Send data to new father added // TODO - Think about this
+        // this.updateGlobalDataWithOwnLocalData();
+        // this.sendGlobalDataToAllFathers();
     }
 
     public addChild(iframe: HTMLIFrameElement, name: string) {
@@ -176,6 +184,9 @@ export class IframeLight {
             name
         }
         this.children.push(child);
+        // Send data to new child added // TODO - Think about this
+        // this.updateGlobalDataWithOwnLocalData();
+        // this.sendGlobalDataToAllChildren();
     }
 
     public messageToFatherByName(name: string, message: any) {
