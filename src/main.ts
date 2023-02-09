@@ -238,14 +238,27 @@ export class IframeLight {
 
     // Data
 
-    public setLocalData(name: string, data: any) {
-        this._localData.data[name] = data;
+    private localDataChangeLogic() {
         this.updateGlobalDataWithOwnLocalData();
         if (this._fathers.length) {
             this.sendGlobalDataToAllFathers();
         } else if (this._children.length){
             this.sendGlobalDataToAllChildren();
         }
+    }
+
+    public setLocalData(name: string, data: any) {
+        this._localData.data[name] = data;
+        this.localDataChangeLogic();
+    }
+
+    public removeLocalData(name?: string) {
+        if (typeof name === 'string') {
+            delete this._localData.data[name];
+        } else {
+            this._localData.data = {};
+        }
+        this.localDataChangeLogic();
     }
 
     public getLocalData(): LocalData {
