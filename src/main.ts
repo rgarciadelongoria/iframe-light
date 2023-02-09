@@ -9,7 +9,7 @@ export interface IframeFather {
 }
 
 export interface MessageEstructure {
-    code: MESSAGE_CODES;
+    code: MESSAGE_CODES | string;
     message: any;
 }
 
@@ -19,7 +19,7 @@ export interface LocalData {
 }
 
 export interface MessageCallback {
-    code: string;
+    code: MESSAGE_CODES | string;
     callback: (event: any) => void;
 }
 
@@ -83,6 +83,13 @@ export class IframeLight {
         this.sendGlobalDataToAllChildren();
     }
 
+    private eventCheckOnMessageCallback(event, code) {
+        const messageCallback = this.findMessageCallbackByCode(code);
+        if (messageCallback) {
+            messageCallback.callback(event);
+        }
+    }
+
     private initEvents() {
         this.eventDebugMode();
         window.onmessage = (event: any) => {
@@ -94,12 +101,8 @@ export class IframeLight {
                     this.eventChildGlobalData(event, code);
                 } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
                     this.eventFatherGlobalData(event, code);
-                } else {
-                    const messageCallback = this.findCallbackByCode(code);
-                    if (messageCallback) {
-                        messageCallback.callback(event);
-                    }
                 }
+                this.eventCheckOnMessageCallback(event, code);
             }
         }
     }
@@ -129,11 +132,11 @@ export class IframeLight {
         return this.children.find((child, index) => child?.name === name);
     }
     
-    private findCallbackByCode(code: string): MessageCallback | undefined {
+    private findMessageCallbackByCode(code: string): MessageCallback | undefined {
         return this.onMessageCallbacks.find((callback, index) => callback?.code === code);
     }
 
-    private formatMessage(message: any, code?: MESSAGE_CODES): MessageEstructure{
+    private formatMessage(message: any, code?: MESSAGE_CODES | string): MessageEstructure{
         const messageEstructure: MessageEstructure = {
             code: code || MESSAGE_CODES.CUSTOM,
             message
@@ -222,10 +225,13 @@ export class IframeLight {
     }
 
     public addOnMessageCallback(code: string, callback: (event?: any) => void) {
-        this.onMessageCallbacks.push({
-            code,
-            callback: callback.bind(this.globalObj)
-        });
+        const messageCallback = this.findMessageCallbackByCode(code)
+        if (!messageCallback) {
+            this.onMessageCallbacks.push({
+                code,
+                callback: callback.bind(this.globalObj)
+            });
+        }
     }
 
     public removeOnMessageCallback(code: string) {
@@ -256,31 +262,31 @@ export class IframeLight {
 
     // Messaging
 
-    public messageToFatherByName(name: string, message: any) {
+    public messageToFatherByName(name: string, message: any, code?: string) {
         const father = this.findFatherByName(name);
         if (father) {
-            parent.postMessage(this.formatMessage(message), father.uri);
+            parent.postMessage(this.formatMessage(message, code), father.uri);
         }
     }   
 
-    public messageToChildByName(name: string, message: any) {
+    public messageToChildByName(name: string, message: any, code?: string) {
         const child = this.findChildByName(name);
         if (child) {
             const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
-            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(this.formatMessage(message), src);
+            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(this.formatMessage(message, code), src);
         }
     }
     
-    public messageToAllFathers(message: any) {
+    public messageToAllFathers(message: any, code?: string) {
         this.fathers.forEach((father) => {
-            parent.postMessage(this.formatMessage(message), father.uri);
+            parent.postMessage(this.formatMessage(message, code), father.uri);
         });
     }
 
-    public messageToAllChildren(message: any) {
+    public messageToAllChildren(message: any, code?: string) {
         this.children.forEach((child) => {
             const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
-            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(this.formatMessage(message), src);
+            (child as any).elementRef.nativeElement?.contentWindow?.postMessage(this.formatMessage(message, code), src);
         });
     }
 

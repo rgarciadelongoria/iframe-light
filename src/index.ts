@@ -1,1 +1,1 @@
-export { IframeLight } from "./main";
+export { IframeLight, MESSAGE_CODES } from "./main";
