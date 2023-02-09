@@ -18,6 +18,11 @@ export interface LocalData {
     data: any;
 }
 
+export interface MessageCallback {
+    code: string;
+    callback: (event: any) => void;
+}
+
 export enum MESSAGE_CODES {
     CUSTOM = 'CUSTOM',
     CHILD_GLOBAL_DATA = 'CHILD_GLOBAL_DATA',
@@ -26,7 +31,9 @@ export enum MESSAGE_CODES {
 
 export class IframeLight {
     private static instance: IframeLight;
-    private onMessageCallback: (event: any) => void;
+    private globalObj: any;
+    private onMessageCustomCallback: (event?: any) => void;
+    private onMessageCallbacks: MessageCallback[] = [];
     private _debug: boolean = false;
     private _fathers: IframeFather[] = [];
     private _children: IframeChild[] = [];
@@ -54,28 +61,44 @@ export class IframeLight {
         console.info(`MicrofrontLight ready! - [${this._localData.uri}]`);
     }
 
+    // Events
+
+    private eventDebugMode() {
+        if (this._debug) {
+            console.log(`MicrofrontLight event - [${this._localData.uri}]`, event);
+        }
+    }
+
+    private eventChildGlobalData(event, code) {
+        this.updateGlobalDataWithIncomingGlobalData(event.data.message, code);
+        if (this._fathers.length) {
+            this.sendGlobalDataToAllFathers();
+        } else if (!this.fathers.length && this._children.length){
+            this.sendGlobalDataToAllChildren();
+        }
+    }
+
+    private eventFatherGlobalData(event, code) {
+        this.updateGlobalDataWithIncomingGlobalData(event.data.message, code);
+        this.sendGlobalDataToAllChildren();
+    }
+
     private initEvents() {
-        // TODO - extract to function to manage events
+        this.eventDebugMode();
         window.onmessage = (event: any) => {
-            if (this._debug) {
-                console.log(`MicrofrontLight event - [${this._localData.uri}]`, event);
-            }
             const code = event.data?.code || MESSAGE_CODES.CUSTOM;
             if (this.hasCorrectOrigin(event)) {
                 if (code === MESSAGE_CODES.CUSTOM) {
-                    this.onMessageCallback(event);
+                    this.onMessageCustomCallback(event);
                 } else if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) {
-                    // TODO - extract to a function for better readability
-                    this.updateGlobalDataWithIncomingGlobalData(event.data.message, code);
-                    if (this._fathers.length) {
-                        this.sendGlobalDataToAllFathers();
-                    } else if (!this.fathers.length && this._children.length){
-                        this.sendGlobalDataToAllChildren();
-                    }
+                    this.eventChildGlobalData(event, code);
                 } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
-                    // TODO - extract to a function for better readability
-                    this.updateGlobalDataWithIncomingGlobalData(event.data.message, code);
-                    this.sendGlobalDataToAllChildren();
+                    this.eventFatherGlobalData(event, code);
+                } else {
+                    const messageCallback = this.findCallbackByCode(code);
+                    if (messageCallback) {
+                        messageCallback.callback(event);
+                    }
                 }
             }
         }
@@ -104,6 +127,10 @@ export class IframeLight {
 
     private findChildByName(name: string): IframeChild | undefined {
         return this.children.find((child, index) => child?.name === name);
+    }
+    
+    private findCallbackByCode(code: string): MessageCallback | undefined {
+        return this.onMessageCallbacks.find((callback, index) => callback?.code === code);
     }
 
     private formatMessage(message: any, code?: MESSAGE_CODES): MessageEstructure{
@@ -167,9 +194,18 @@ export class IframeLight {
         this.updateGlobalDataWithOwnLocalData(); // Update global data with own local data
     }
 
+    private localDataChangeLogic() {
+        this.updateGlobalDataWithOwnLocalData();
+        if (this._fathers.length) {
+            this.sendGlobalDataToAllFathers();
+        } else if (this._children.length){
+            this.sendGlobalDataToAllChildren();
+        }
+    }
+
     // Config
 
-    public static init(debug?: boolean): IframeLight {
+    public static init(globalObj: any, debug?: boolean): IframeLight {
         if (!IframeLight.instance) {
             IframeLight.instance = new IframeLight();
             if (debug) {
@@ -177,11 +213,23 @@ export class IframeLight {
                 console.warn('MicrofrontLight is in debug mode');
             }
         }
+        IframeLight.instance.globalObj = globalObj;
         return IframeLight.instance;
     }
 
-    public setOnMessageCallback(callback: (event: any) => void) {
-        this.onMessageCallback = callback;
+    public setOnMessageCustomCallback(callback: (event?: any) => void) {
+        this.onMessageCustomCallback = callback.bind(this.globalObj);
+    }
+
+    public addOnMessageCallback(code: string, callback: (event?: any) => void) {
+        this.onMessageCallbacks.push({
+            code,
+            callback: callback.bind(this.globalObj)
+        });
+    }
+
+    public removeOnMessageCallback(code: string) {
+        this.onMessageCallbacks = this.onMessageCallbacks.filter((callback) => callback.code !== code);
     }
 
     public addFather(uri: string, name: string): void {
@@ -237,15 +285,6 @@ export class IframeLight {
     }
 
     // Data
-
-    private localDataChangeLogic() {
-        this.updateGlobalDataWithOwnLocalData();
-        if (this._fathers.length) {
-            this.sendGlobalDataToAllFathers();
-        } else if (this._children.length){
-            this.sendGlobalDataToAllChildren();
-        }
-    }
 
     public setLocalData(name: string, data: any) {
         this._localData.data[name] = data;
