@@ -24,16 +24,15 @@ export interface MessageCallback {
 }
 
 export enum MESSAGE_CODES {
-    CUSTOM = 'CUSTOM',
+    DEFAULT = 'DEFAULT',
     CHILD_GLOBAL_DATA = 'CHILD_GLOBAL_DATA',
     FATHER_GLOBAL_DATA = 'FATHER_GLOBAL_DATA',
 }
 
 export class IframeLight {
     private static instance: IframeLight;
-    private globalObj: any;
-    private onMessageCustomCallback: (event?: any) => void;
-    private onMessageCallbacks: MessageCallback[] = [];
+    private _globalObj: any;
+    private _onMessageCallbacks: MessageCallback[] = [];
     private _debug: boolean = false;
     private _fathers: IframeFather[] = [];
     private _children: IframeChild[] = [];
@@ -93,11 +92,9 @@ export class IframeLight {
     private initEvents() {
         this.eventDebugMode();
         window.onmessage = (event: any) => {
-            const code = event.data?.code || MESSAGE_CODES.CUSTOM;
+            const code = event.data?.code || MESSAGE_CODES.DEFAULT;
             if (this.hasCorrectOrigin(event)) {
-                if (code === MESSAGE_CODES.CUSTOM) {
-                    this.onMessageCustomCallback(event);
-                } else if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) {
+                if (code === MESSAGE_CODES.CHILD_GLOBAL_DATA) {
                     this.eventChildGlobalData(event, code);
                 } else if (code === MESSAGE_CODES.FATHER_GLOBAL_DATA) {
                     this.eventFatherGlobalData(event, code);
@@ -133,12 +130,12 @@ export class IframeLight {
     }
     
     private findMessageCallbackByCode(code: string): MessageCallback | undefined {
-        return this.onMessageCallbacks.find((callback, index) => callback?.code === code);
+        return this._onMessageCallbacks.find((callback, index) => callback?.code === code);
     }
 
     private formatMessage(message: any, code?: MESSAGE_CODES | string): MessageEstructure{
         const messageEstructure: MessageEstructure = {
-            code: code || MESSAGE_CODES.CUSTOM,
+            code: code || MESSAGE_CODES.DEFAULT,
             message
         }
         return messageEstructure;
@@ -216,26 +213,22 @@ export class IframeLight {
                 console.warn('MicrofrontLight is in debug mode');
             }
         }
-        IframeLight.instance.globalObj = globalObj;
+        IframeLight.instance._globalObj = globalObj;
         return IframeLight.instance;
-    }
-
-    public setOnMessageCustomCallback(callback: (event?: any) => void) {
-        this.onMessageCustomCallback = callback.bind(this.globalObj);
     }
 
     public addOnMessageCallback(code: string, callback: (event?: any) => void) {
         const messageCallback = this.findMessageCallbackByCode(code)
         if (!messageCallback) {
-            this.onMessageCallbacks.push({
+            this._onMessageCallbacks.push({
                 code,
-                callback: callback.bind(this.globalObj)
+                callback: callback.bind(this._globalObj)
             });
         }
     }
 
     public removeOnMessageCallback(code: string) {
-        this.onMessageCallbacks = this.onMessageCallbacks.filter((callback) => callback.code !== code);
+        this._onMessageCallbacks = this._onMessageCallbacks.filter((callback) => callback.code !== code);
     }
 
     public addFather(uri: string, name: string): void {
@@ -262,14 +255,14 @@ export class IframeLight {
 
     // Messaging
 
-    public messageToFatherByName(name: string, message: any, code?: string) {
+    public sendMessageToFatherByName(name: string, message: any, code?: string) {
         const father = this.findFatherByName(name);
         if (father) {
             parent.postMessage(this.formatMessage(message, code), father.uri);
         }
     }   
 
-    public messageToChildByName(name: string, message: any, code?: string) {
+    public sendMessageToChildByName(name: string, message: any, code?: string) {
         const child = this.findChildByName(name);
         if (child) {
             const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
@@ -277,13 +270,13 @@ export class IframeLight {
         }
     }
     
-    public messageToAllFathers(message: any, code?: string) {
+    public sendMessageToAllFathers(message: any, code?: string) {
         this.fathers.forEach((father) => {
             parent.postMessage(this.formatMessage(message, code), father.uri);
         });
     }
 
-    public messageToAllChildren(message: any, code?: string) {
+    public sendMessageToAllChildren(message: any, code?: string) {
         this.children.forEach((child) => {
             const src = (child as any)?.elementRef?.nativeElement?.getAttribute('src');
             (child as any).elementRef.nativeElement?.contentWindow?.postMessage(this.formatMessage(message, code), src);

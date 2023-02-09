@@ -1,7 +1,7 @@
 {
   "name": "@rgarciadelongoria/iframe-light",
   "version": "0.0.1",
-  "description": "Simple library to work with micro frontends using iframes.",
+  "description": "Simple library to work with iframes.",
   "main": "lib/es5/index.js",
   "module": "lib/es6/index.js",
   "sideEffects": false,
